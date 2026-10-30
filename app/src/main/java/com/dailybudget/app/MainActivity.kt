@@ -17,8 +17,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var pieChartView: PieChartView
     private var activeDialog: AlertDialog? = null
 
-    // Ссылка на вашу страницу донатов/чаевых (CloudTips, Boosty, Tinkoff и т.д.)
-    private val DONATION_URL = "https://boosty.to"
+    private val DONATION_URL = "https://pay.cloudtips.ru/p/b7a00553"
 
     private val CUSTOM_CATEGORY_TRIGGER = "+ Своя категория..."
     private val defaultCategories = arrayListOf(
@@ -113,7 +112,6 @@ class MainActivity : AppCompatActivity() {
             BudgetWidgetProvider.updateAllWidgets(this)
         }
 
-        // Обработка кнопки поддержки: открытие внешнего браузера
         findViewById<Button>(R.id.btnSupportAuthor).setOnClickListener {
             try {
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(DONATION_URL))

@@ -7,6 +7,7 @@ import android.database.sqlite.SQLiteOpenHelper
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlin.math.roundToLong
 
 data class Expense(
@@ -24,6 +25,8 @@ data class CategoryStat(
 
 class DatabaseHelper private constructor(context: Context) :
     SQLiteOpenHelper(context.applicationContext, DATABASE_NAME, null, DATABASE_VERSION) {
+
+    private val dbDateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.US)
 
     override fun onConfigure(db: SQLiteDatabase) {
         super.onConfigure(db)
@@ -94,8 +97,8 @@ class DatabaseHelper private constructor(context: Context) :
                     "cycle_days" -> cycleDays = value.toIntOrNull() ?: 30
                     "start_date" -> {
                         startDate = try {
-                            // Берём только часть YYYY-MM-DD
-                            LocalDate.parse(value.substring(0, 10))
+                            val cleanVal = if (value.length >= 10) value.substring(0, 10) else value
+                            LocalDate.parse(cleanVal)
                         } catch (e: Exception) {
                             today
                         }
@@ -108,27 +111,27 @@ class DatabaseHelper private constructor(context: Context) :
 
     fun calculateCurrentBudget(today: LocalDate = LocalDate.now()): BudgetCalculationResult {
         val (budgetCents, cycleDays, startDate) = getConfig(today)
-        val startDatePrefix = startDate.toString()
-        val todayPrefix = today.toString()
+        val startDateStr = startDate.toString()
+        val todayStr = today.toString()
 
         val db = readableDatabase
 
-        // 1. Траты за предыдущие дни цикла: дата >= startDatePrefix, но меньше сегодняшней даты
+        // 1. Траты за предыдущие дни цикла (начиная с даты старта и до сегодня)
         var spentBeforeTodayCents = 0L
         db.rawQuery(
             "SELECT COALESCE(SUM(amount_cents), 0) FROM expenses WHERE substr(date_time, 1, 10) >= ? AND substr(date_time, 1, 10) < ?",
-            arrayOf(startDatePrefix, todayPrefix)
+            arrayOf(startDateStr, todayStr)
         ).use { cursor ->
             if (cursor.moveToFirst()) {
                 spentBeforeTodayCents = cursor.getLong(0)
             }
         }
 
-        // 2. Траты за СЕГОДНЯ: точное совпадение даты (первые 10 символов 'YYYY-MM-DD')
+        // 2. Траты за сегодня
         var spentTodayCents = 0L
         db.rawQuery(
             "SELECT COALESCE(SUM(amount_cents), 0) FROM expenses WHERE substr(date_time, 1, 10) = ?",
-            arrayOf(todayPrefix)
+            arrayOf(todayStr)
         ).use { cursor ->
             if (cursor.moveToFirst()) {
                 spentTodayCents = cursor.getLong(0)
@@ -167,7 +170,7 @@ class DatabaseHelper private constructor(context: Context) :
 
     fun addExpense(amountRubles: Double, category: String) {
         val db = writableDatabase
-        val now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+        val now = LocalDateTime.now().format(dbDateFormatter)
         val values = ContentValues().apply {
             put("amount_cents", (amountRubles * 100).roundToLong())
             put("category", category)
@@ -212,14 +215,14 @@ class DatabaseHelper private constructor(context: Context) :
         val list = mutableListOf<CategoryStat>()
         val today = LocalDate.now()
         val (_, _, startDate) = getConfig(today)
-        val startDatePrefix = startDate.toString()
+        val startDateStr = startDate.toString()
 
         val db = readableDatabase
 
         var totalSpentCents = 0L
         db.rawQuery(
             "SELECT COALESCE(SUM(amount_cents), 0) FROM expenses WHERE substr(date_time, 1, 10) >= ?",
-            arrayOf(startDatePrefix)
+            arrayOf(startDateStr)
         ).use {
             if (it.moveToFirst()) totalSpentCents = it.getLong(0)
         }
@@ -234,7 +237,7 @@ class DatabaseHelper private constructor(context: Context) :
             GROUP BY category 
             ORDER BY cat_total DESC
             """.trimIndent(),
-            arrayOf(startDatePrefix)
+            arrayOf(startDateStr)
         ).use { cursor ->
             while (cursor.moveToNext()) {
                 val cat = cursor.getString(0) ?: "Другое"

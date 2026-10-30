@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Суточный</string>
+    <string name="widget_description">Баланс на сегодня и остаток бюджета периода</string>
+</resources>
